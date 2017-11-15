@@ -1,13 +1,19 @@
 '''
 Solution to the codingame.com puzzle [Mars Lander](https://www.codingame.com/training/medium/mars-lander-episode-2)
 
-The goal here is land a moon lander on a terrain at a particular spot.
+The goal here is land a moon lander on a terrain at a particular spot.  This
+solution passes all the tests including the ones where the landing spot is
+covered by an overhanging surface.  It did this first time.  Honestly more luck
+than skill :)
 
-The game handles the physics of the lander and feeds the lander's velocity and location
-into the code each tick.
+The game handles the physics of the lander and feeds the lander's velocity
+and location into the code each tick.
 
-The code can instruct the lander to rotate clockwise or anit-clockwise and to
-fire the thrusters at one of 3 settings (off, low and high).
+The code can instruct the lander to
+    * Rotate to a set angle (which the lander will do at a set rate,
+    not instantaneously.
+    * Fire the thrusters at one of 5 settings 0-4.  0 is off, 4 is max
+    trust.
 
 An optimal solution could be to solve the equations of motion for the lander
 and pilot a parabolic path to the landing spot.  Given we don't know the
@@ -17,9 +23,8 @@ puzzles often like to change parameters on you to ensure your solution is
 as general as possible.  So...this seems like a great chance to build to use
 the state design pattern from the Gang of Four.
 
-So the solution is to implement a Lander class.
-
-The class will have several states and move between the states depending on
+The Lander will have a state that governs its current goal and its method for
+reaching that goal. The lander will move between the states depending on
 the current micro-goal in the solution.
 
 For instance one state is to drive the lander to the landing spot.  Once
@@ -27,6 +32,17 @@ the lander is over the stop we transition to a desent state who's goal
 is to reduce the lander's height as quickly as possible while not making
 it impossible to slow down to land.  Finally a landing state would reduce
 the descent to a safe speed to land.
+
+Concretely the lander will go through the following states,
+
+    1. MoveTowardsLandingSpot
+    2. StopHorizontalMovement
+    3. Descend
+    4. Land
+
+Descend has two internal states.  Above a fixed altitude it descends as
+fast as possible and works to stop horizontal movement.  Below this altitude
+it slows to a safe descent speed and aborts if horizontal speed is unsafe.
 '''
 
 import sys
@@ -272,7 +288,7 @@ class Hover(State):
             return 4
 
 
-class StopOverLandingSpot(Hover):
+class MoveTowardsLandingSpot(Hover):
     MAX_SPEED = 20
     MAX_ANGLE = 45
     HOVER_ANGLE = 0
@@ -334,7 +350,7 @@ class StopOverLandingSpot(Hover):
         return -self.MAX_SPEED <= self.lander.speed_h <= self.MAX_SPEED
 
     def transition_to_stop(self):
-        self.lander.state = Stop(lander, StopOverLandingSpot)
+        self.lander.state = StopHorizontalMovement(lander, MoveTowardsLandingSpot)
         return self.lander.state.update_rotation()
 
     def update_power(self):
@@ -382,7 +398,7 @@ class Descend(Hover):
     def descent_is_too_fast(self):
         return self.lander.speed_v < self.SAFE_DESCENT_SPEED
 
-class Stop(Hover):
+class StopHorizontalMovement(Hover):
     def __init__(self, lander, next_state):
         '''
         Stop horizontal moverment as fast as possible attempt to hold altitude.
@@ -413,7 +429,7 @@ def codingame_initilisation():
 if __name__=='__main__':
     surface = codingame_initilisation()
     lander = Lander(surface)
-    lander.state = StopOverLandingSpot(lander)
+    lander.state = MoveTowardsLandingSpot(lander)
     previous_state = lander.state.__class__
     # game loop
     while True:
